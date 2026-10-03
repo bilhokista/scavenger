@@ -1,0 +1,10 @@
+missions/
+ledger.sqlite3*
+.scavenger/
+.env
+__pycache__/
+.pytest_cache/
+.coverage
+dist/
+*.egg-info/
+.venv/
