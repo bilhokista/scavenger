@@ -484,6 +484,13 @@ class Store:
                 (name,),
             )
 
+    def reset_empty_refills(self, name: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE missions SET empty_refills = 0 WHERE name = ?",
+                (name,),
+            )
+
     def add_strategy(
         self,
         *,
