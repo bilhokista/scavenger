@@ -195,8 +195,11 @@ def run_fake(max_ticks: int = 20) -> dict:
     llm = _ScriptedLLM(
         [
             (
-                '{"probabilities": [{"path_key": "fake-demo:opportunity",'
-                ' "probability": 0.8, "note": "demo"}]}',
+                (
+                    '{"probabilities": [{"path_key":'
+                    ' "fake-demo:opportunity", "probability": 0.8,'
+                    ' "note": "demo"}]}'
+                ),
                 10,
                 10,
             ),

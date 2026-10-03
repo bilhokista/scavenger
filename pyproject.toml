@@ -12,7 +12,7 @@ dependencies = ["httpx"]
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "respx", "ruff", "freezegun"]
+dev = ["pytest", "pytest-cov", "respx", "ruff==0.16.10", "freezegun"]
 anthropic = ["anthropic"]
 openai = ["openai"]
 
