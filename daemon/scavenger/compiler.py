@@ -139,6 +139,8 @@ def _vocabulary(config) -> str:
         " Ladder rungs use free names ending in 'settled'."
         ' Amounts and money are plain number strings like "1500.00".'
         " Deadlines are ISO timestamps like 2026-11-30T16:59:59+00:00."
+        " Human answers are terse: extract money, token, and round"
+        " numbers, ISO dates, and adapter or rule names from them."
     )
 
 
