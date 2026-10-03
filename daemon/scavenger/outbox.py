@@ -4,8 +4,10 @@ import hmac
 import json
 import os
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+
+import httpx
 
 from scavenger.notifiers import Notice, fan_out
 
@@ -21,6 +23,12 @@ class OutboxRefused(Exception):
 
 
 @dataclass(frozen=True)
+class LimitViolation:
+    rule: str
+    detail: str
+
+
+@dataclass(frozen=True)
 class DraftSpec:
     kind: str
     target: str
@@ -28,16 +36,88 @@ class DraftSpec:
     links_json: str = "[]"
     payload_json: str = "{}"
     cost: Decimal = Decimal(0)
+    guarantor: str = "none"
+    guarantor_evidence: str | None = None
 
 
-@dataclass(frozen=True)
-class LimitViolation:
-    rule: str
-    detail: str
+def _normalize_body(body: str) -> str:
+    return " ".join(body.split()).lower()
 
 
-def check_limits(spec, store, github=None) -> list:
+def _check_guarantor(spec) -> list:
+    if not spec.guarantor_evidence:
+        return [
+            LimitViolation("guarantor_evidence", "guarantor set but no evidence URL")
+        ]
+    try:
+        response = httpx.get(spec.guarantor_evidence, timeout=20)
+    except httpx.HTTPError as error:
+        return [LimitViolation("guarantor_evidence", f"evidence unreachable: {error}")]
+    if response.status_code != 200:
+        return [
+            LimitViolation(
+                "guarantor_evidence",
+                f"evidence http {response.status_code}",
+            )
+        ]
     return []
+
+
+def check_limits(spec, store, github=None, outbox_config=None) -> list:
+    # Decision: plan fixes the signature as (spec, store, github).
+    # Thresholds live in config; production passes outbox_config, tests
+    # rely on the plan defaults below.
+    max_prs = outbox_config.max_open_prs_per_repo if outbox_config else 3
+    max_sends = outbox_config.max_sends_per_day if outbox_config else 10
+    dup_days = outbox_config.duplicate_body_window_days if outbox_config else 7
+    violations = []
+    if spec.kind == "github_pr" and github is not None:
+        try:
+            repo = json.loads(spec.payload_json).get("repo", spec.target)
+        except ValueError:
+            repo = spec.target
+        try:
+            open_count = github.count_open_prs(repo, github.username)
+        except Exception as error:  # noqa: BLE001 - uncountable means refuse
+            return [
+                LimitViolation(
+                    "max_open_prs",
+                    f"cannot count open PRs in {repo}: {error}",
+                )
+            ]
+        if open_count >= max_prs:
+            violations.append(
+                LimitViolation(
+                    "max_open_prs",
+                    f"{open_count} open PRs by {github.username} in {repo}",
+                )
+            )
+    if spec.guarantor != "none":
+        violations.extend(_check_guarantor(spec))
+    now = datetime.now(UTC)
+    if store.sends_since((now - timedelta(hours=24)).isoformat()) >= max_sends:
+        violations.append(
+            LimitViolation("max_sends_per_day", f"{max_sends} sends in the last 24h")
+        )
+    window_start = (now - timedelta(days=dup_days)).isoformat()
+    digest = hashlib.sha256(_normalize_body(spec.body).encode("utf-8")).hexdigest()
+    for item in store.list_outbox("sent"):
+        if item.sent_at is None or item.sent_at < window_start:
+            continue
+        if item.target == spec.target:
+            continue
+        if (
+            hashlib.sha256(_normalize_body(item.body).encode("utf-8")).hexdigest()
+            == digest
+        ):
+            violations.append(
+                LimitViolation(
+                    "duplicate_body",
+                    f"same body already sent to {item.target}",
+                )
+            )
+            break
+    return violations
 
 
 def canonical_hash(
@@ -99,7 +179,7 @@ def _parse_draft(text: str) -> dict:
 
 
 class Outbox:
-    def __init__(self, store, config, notifiers, clock) -> None:
+    def __init__(self, store, config, notifiers, clock, github=None) -> None:
         secret = os.environ.get(config.outbox.secret_env, "")
         if not secret:
             raise OutboxError(
@@ -112,9 +192,10 @@ class Outbox:
         self._config = config
         self._notifiers = list(notifiers)
         self._clock = clock
+        self._github = github
 
     def create_draft(self, spec: DraftSpec, mission: str, strategy_id: int | None):
-        violations = check_limits(spec, self._store)
+        violations = check_limits(spec, self._store, self._github, self._config.outbox)
         expires_at = (
             self._clock.now() + timedelta(hours=self._config.outbox.token_ttl_hours)
         ).isoformat()
@@ -289,5 +370,5 @@ class Outbox:
         return count
 
 
-def create_outbox(store, config, notifiers, clock) -> Outbox:
-    return Outbox(store, config, notifiers, clock)
+def create_outbox(store, config, notifiers, clock, github=None) -> Outbox:
+    return Outbox(store, config, notifiers, clock, github)
