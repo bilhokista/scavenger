@@ -1,4 +1,5 @@
 import hashlib
+import json
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -169,12 +170,60 @@ def _vocabulary(config) -> str:
     )
 
 
+_SKELETON = """{
+  "name": null,
+  "statement": null,
+  "target": {"amount": null, "currency": null, "deadline": null},
+  "budget": {"money": null, "tokens": null, "rounds": null},
+  "settle": {"adapter": null, "rules": []},
+  "ladder": [
+    {"rung": null, "expected_wait_hours": null},
+    {"rung": null, "expected_wait_hours": null},
+    {"rung": "settled", "expected_wait_hours": null}
+  ],
+  "strategy_defaults": {
+    "max_rounds": 3, "max_loss": "10.00", "max_pending_hours": 168
+  }
+}"""
+
+
+def _draft_prompt(config) -> str:
+    return (
+        "Fill every null in this JSON skeleton from the brief below."
+        " Keep all keys. Amounts and money are number strings like"
+        ' "1500.00". Deadlines are ISO timestamps.'
+        " Reply with ONLY the filled JSON, no prose, no fences. "
+        + _vocabulary(config)
+        + "\nSkeleton:\n"
+        + _SKELETON
+    )
+
+
+def _patch_prompt(config) -> str:
+    return (
+        "Fix only the fields related to the last answer, keep everything"
+        " else byte-identical. Reply with ONLY the full JSON, no prose,"
+        " no fences. " + _vocabulary(config)
+    )
+    from scavenger.goal import KNOWN_ADAPTERS
+
+    rules = [rule.name for rule in config.payment_rules]
+    return (
+        f"Valid settle adapters: {', '.join(sorted(KNOWN_ADAPTERS))}."
+        f" Configured payment rules: {', '.join(rules) or 'none'}."
+        " Ladder rungs use free names ending in 'settled'."
+        ' Amounts and money are plain number strings like "1500.00".'
+        " Deadlines are ISO timestamps like 2026-11-30T16:59:59+00:00."
+        " Human answers are terse: extract money, token, and round"
+        " numbers, ISO dates, and adapter or rule names from them."
+    )
+
+
 def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
     conversation = brief
     draft = complete_json(
         llm,
-        "Turn the brief into a goal contract."
-        " Reply with ONLY a JSON object, no prose, no fences. " + _vocabulary(config),
+        _draft_prompt(config),
         conversation,
         _GOAL_SCHEMA,
     )
@@ -199,9 +248,7 @@ def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
         conversation += f"\nQ: {question}\nA: {answer or '(silence)'}"
         draft = complete_json(
             llm,
-            "Patch the goal contract with the answer."
-            " Reply with ONLY a JSON object, no prose, no fences. "
-            + _vocabulary(config),
+            _patch_prompt(config) + "\nCurrent contract:\n" + json.dumps(draft),
             conversation,
             _GOAL_SCHEMA,
         )
