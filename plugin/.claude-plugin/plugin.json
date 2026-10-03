@@ -1,0 +1,5 @@
+{
+  "name": "scavenger",
+  "version": "0.1.0",
+  "description": "Goal-loop discipline: compile vague briefs into GOAL.md contracts and demand evidence before done."
+}
