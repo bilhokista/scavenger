@@ -35,3 +35,9 @@ def test_token_counts_reported():
 def test_no_llm_raises():
     with pytest.raises(LLMError):
         NoLLM().complete("sys", "hi")
+
+
+def test_json_schema_strips_fences():
+    fenced = LLMResult(text='```json\n{"a": 1}\n```', tokens_in=1, tokens_out=1)
+    fake = FakeLLM([fenced])
+    assert complete_json(fake, "sys", "give json", {"type": "object"}) == {"a": 1}

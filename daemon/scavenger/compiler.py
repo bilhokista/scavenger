@@ -119,7 +119,8 @@ def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
     conversation = brief
     draft = complete_json(
         llm,
-        "Turn the brief into a goal contract. Reply JSON only.",
+        "Turn the brief into a goal contract."
+        " Reply with ONLY a JSON object, no prose, no fences.",
         conversation,
         _GOAL_SCHEMA,
     )
@@ -144,7 +145,8 @@ def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
         conversation += f"\nQ: {question}\nA: {answer or '(silence)'}"
         draft = complete_json(
             llm,
-            "Patch the goal contract with the answer. Reply JSON only.",
+            "Patch the goal contract with the answer."
+            " Reply with ONLY a JSON object, no prose, no fences.",
             conversation,
             _GOAL_SCHEMA,
         )

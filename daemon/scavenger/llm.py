@@ -29,10 +29,22 @@ def complete_json(llm: LLM, system: str, prompt: str, schema: dict) -> Any:
     for _ in range(2):
         result = llm.complete(system, prompt, json_schema=schema)
         try:
-            return json.loads(result.text)
+            return json.loads(_strip_fences(result.text))
         except json.JSONDecodeError as error:
             last_error = error
     raise LLMFormatError(f"invalid JSON after one retry: {last_error}")
+
+
+def _strip_fences(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        cleaned = "\n".join(lines)
+        cleaned = cleaned.removeprefix("json\n")
+    return cleaned.strip()
 
 
 class AnthropicLLM:
