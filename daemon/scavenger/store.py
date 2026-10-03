@@ -633,6 +633,32 @@ class Store:
         rounds = self.list_rounds(strategy_id, 1)
         return rounds[0] if rounds else None
 
+    def round_for_outbox(self, outbox_id: str) -> Round | None:
+        row = self._conn.execute(
+            "SELECT * FROM rounds WHERE outbox_id = ? ORDER BY id DESC LIMIT 1",
+            (outbox_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return Round(
+            id=row["id"],
+            strategy_id=row["strategy_id"],
+            started_at=row["started_at"],
+            ended_at=row["ended_at"],
+            action_kind=row["action_kind"],
+            action_fingerprint=row["action_fingerprint"],
+            outbox_id=row["outbox_id"],
+            locator_json=row["locator_json"],
+            result_state=row["result_state"],
+        )
+
+    def set_round_locator(self, round_id: int, locator_json: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE rounds SET locator_json = ? WHERE id = ?",
+                (locator_json, round_id),
+            )
+
     def list_rounds(self, strategy_id: int, limit: int | None = None) -> list:
         sql = "SELECT * FROM rounds WHERE strategy_id = ? ORDER BY id DESC"
         args: tuple = (strategy_id,)

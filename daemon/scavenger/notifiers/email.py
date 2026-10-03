@@ -14,11 +14,15 @@ class SmtpClient:
         self._password = password
         self._from_address = from_address
 
-    def send(self, to: str, subject: str, body: str) -> None:
+    def send(
+        self, to: str, subject: str, body: str, message_id: str | None = None
+    ) -> None:
         message = MIMEText(body, "plain", "utf-8")
         message["From"] = self._from_address
         message["To"] = to
         message["Subject"] = subject
+        if message_id is not None:
+            message["Message-ID"] = message_id
         try:
             with smtplib.SMTP(self._host, self._port, timeout=25) as server:
                 server.ehlo()
