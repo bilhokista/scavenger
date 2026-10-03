@@ -1,0 +1,112 @@
+[paths]
+missions = "missions"
+db = "ledger.sqlite3"
+run_dir = ".scavenger"          # pid file, heartbeat, active mission
+
+[llm]
+provider = "anthropic"          # "anthropic" | "openai_compatible" | "none"
+model = "claude-sonnet-5-5"
+api_key_env = "ANTHROPIC_API_KEY"
+base_url = ""                   # only for openai_compatible
+max_tokens_per_call = 4000
+price_per_million_input = "3.00"    # in [budget].currency, for spend accounting
+price_per_million_output = "15.00"
+
+[budget]
+currency = "USD"                # currency budgets and spend are counted in
+
+[fx]                            # static rates INTO the mission target currency
+# "USD->IDR" = "16000"          # key format "FROM->TO"; missing pair = not counted
+
+[http]
+timeout_seconds = 20
+user_agent = "scavenger/0.1 (+https://github.com/<owner>/scavenger)"
+
+[loop]
+tick_seconds = 60
+max_active = 1                  # concurrently active (non-pending) strategies
+
+[verifier]
+unverified_backoff_minutes = [5, 30, 120]
+check_interval_minutes = 30     # how often pending strategies are re-checked
+
+[research]
+max_strategies = 5
+min_interval_minutes = 60       # anti-wandering: min gap between refills
+max_tokens_per_run = 200000
+gap_floor_ratio = "0.05"
+web_search = "none"             # reserved; no provider in v0.1
+
+[ledger]
+min_history_for_probability = 3
+block_after_same_cause_deaths = 2
+block_days = 14
+
+[outbox]
+token_ttl_hours = 24
+max_sends_per_day = 10
+max_open_prs_per_repo = 3
+duplicate_body_window_days = 7
+secret_env = "SCAVENGER_APPROVAL_SECRET"   # >= 32 bytes, required
+
+[supervisor]
+max_hourly_money = "5.00"       # in [budget].currency
+max_hourly_tokens = 500000
+heartbeat_stale_factor = 3      # stale if older than factor * loop.tick_seconds
+spin_rounds = 3
+
+[executor]
+agent_command = []              # e.g. ["claude", "-p"]; empty = no code work
+agent_timeout_minutes = 60
+
+[github]
+token_env = "GITHUB_TOKEN"
+username = ""
+
+[imap]
+host = ""
+port = 993
+username_env = "SCAVENGER_IMAP_USER"
+password_env = "SCAVENGER_IMAP_PASSWORD"
+folder = "INBOX"
+
+[smtp]
+host = ""
+port = 587
+username_env = "SCAVENGER_SMTP_USER"
+password_env = "SCAVENGER_SMTP_PASSWORD"
+from_address = ""
+
+[[payment_rules]]               # one per sender that emails payment notices
+name = "example-bank"
+from_regex = "noreply@bank\\.example"
+subject_regex = "(?i)incoming transfer"
+amount_regex = "(?P<amount>[0-9.,]+)"
+decimal_separator = "."         # "." or ","
+currency = "USD"                # fixed currency for this sender, or ""
+currency_regex = ""             # used when currency = ""; named group "currency"
+reference_regex = "(?i)ref(?:erence)?[: ]+(?P<ref>\\S+)"
+
+[notifiers]
+enabled = ["desktop"]           # any of: desktop, email, telegram, discord, slack, ntfy
+
+[notifiers.email]
+to = ""
+
+[notifiers.telegram]
+bot_token_env = "SCAVENGER_TELEGRAM_TOKEN"
+chat_id = ""
+allowed_user_ids = []           # only these may approve
+
+[notifiers.discord]
+webhook_url_env = "SCAVENGER_DISCORD_WEBHOOK"
+
+[notifiers.slack]
+webhook_url_env = "SCAVENGER_SLACK_WEBHOOK"
+
+[notifiers.ntfy]
+server = "https://ntfy.sh"
+topic_env = "SCAVENGER_NTFY_TOPIC"
+
+[channels]
+enabled = []                    # filled in Phase 6
