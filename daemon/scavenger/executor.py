@@ -1,10 +1,13 @@
 import json
+import subprocess
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
 from scavenger import brake
+from scavenger.config import ConfigError
 from scavenger.goal import parse as parse_goal
+from scavenger.outbox import DraftSpec
 
 
 @dataclass(frozen=True)
@@ -66,10 +69,124 @@ class Executor:
         return "waited"
 
     def _run_local(self, strategy, round_id: int, action) -> str:
-        return self.run_agent(strategy, action.description)
+        repo = self._pr_repo(strategy)
+        result = self.run_agent(strategy, action.description)
+        if not result.ok:
+            self._store.add_proof_check(
+                strategy.id,
+                round_id,
+                self._rung_name(strategy),
+                "agent",
+                "{}",
+                "fail",
+                result.detail[-65536:],
+                None,
+                self._clock.now().isoformat(),
+            )
+            self._store.end_round(
+                round_id,
+                ended_at=self._clock.now().isoformat(),
+                result_state="fail",
+            )
+            return "agent-failed"
+        description = ""
+        if result.description_path is not None:
+            description = Path(result.description_path).read_text(encoding="utf-8")
+        title = (
+            description.strip().splitlines()[0]
+            if description.strip()
+            else (f"scavenger work for {strategy.path_key}")
+        )
+        branch = f"scav-{strategy.id}-{round_id}"
+        self._outbox.create_draft(
+            DraftSpec(
+                kind="github_pr",
+                target=repo,
+                body=description,
+                payload_json=json.dumps(
+                    {
+                        "repo": repo,
+                        "base": "main",
+                        "branch": branch,
+                        "title": title,
+                        "patch_path": result.patch_path,
+                    }
+                ),
+            ),
+            strategy.mission,
+            strategy.id,
+        )
+        return "agent-drafted"
 
-    def run_agent(self, strategy, instructions: str):
-        raise NotImplementedError("task 5.3")
+    def _pr_repo(self, strategy) -> str:
+        if not strategy.outward_key.startswith("github:"):
+            raise ConfigError(
+                f"local action needs a github outward_key, got {strategy.outward_key!r}"
+            )
+        return strategy.outward_key[len("github:") :]
+
+    def _rung_name(self, strategy) -> str:
+        try:
+            rungs = json.loads(strategy.rungs_json)
+            return rungs[strategy.rung_index].get("rung", "")
+        except (ValueError, IndexError, AttributeError):
+            return ""
+
+    def run_agent(self, strategy, instructions: str) -> AgentResult:
+        command = list(self._config.executor.agent_command)
+        if not command:
+            raise ConfigError(
+                "channel produced a local action but executor.agent_command is empty"
+            )
+        workdir = (
+            self._config.paths.missions / strategy.mission / "work" / str(strategy.id)
+        )
+        workdir.mkdir(parents=True, exist_ok=True)
+        prompt = (
+            f"{instructions}\n\nRules: do the work in this directory."
+            " Write the unified patch to out/patch.diff and a PR"
+            " description to out/pr.md. Never push, never send anything,"
+            " never touch the network."
+        )
+        timeout = self._config.executor.agent_timeout_minutes * 60
+        try:
+            completed = subprocess.run(  # noqa: PLW1510 - returncode handled below
+                [*command, prompt],
+                cwd=workdir,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as error:
+            return AgentResult(
+                ok=False,
+                patch_path=None,
+                description_path=None,
+                detail=f"agent timed out: {error}",
+            )
+        if completed.returncode != 0:
+            return AgentResult(
+                ok=False,
+                patch_path=None,
+                description_path=None,
+                detail=(completed.stdout + completed.stderr)[-65536:],
+            )
+        patch = workdir / "out" / "patch.diff"
+        if not patch.exists() or not patch.read_text(encoding="utf-8").strip():
+            return AgentResult(
+                ok=False,
+                patch_path=None,
+                description_path=None,
+                detail=(completed.stdout + completed.stderr)[-65536:]
+                or "agent wrote no patch",
+            )
+        description = workdir / "out" / "pr.md"
+        return AgentResult(
+            ok=True,
+            patch_path=str(patch),
+            description_path=(str(description) if description.exists() else None),
+            detail="patch ready",
+        )
 
     def _goal_path(self, mission) -> Path:
         path = Path(mission.goal_path)
