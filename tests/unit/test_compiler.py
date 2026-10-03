@@ -126,6 +126,26 @@ def test_missing_required_after_three_raises(tmp_path, monkeypatch):
     raise AssertionError("expected MissingRequiredField")
 
 
+def test_string_shaped_draft_becomes_questions_not_crash(tmp_path, monkeypatch):
+    from scavenger.compiler import MissingRequiredField
+
+    config, store = setup(tmp_path, monkeypatch)
+    sloppy = {
+        "name": "demo",
+        "statement": "cari duit 200 USD",
+        "target": "200 USD",
+        "budget": "50 USD",
+        "settle": "bank email",
+        "ladder": ["submitted", "settled"],
+    }
+    llm = FakeLLM([draft_result(sloppy)] * 5)
+    try:
+        compile_here(store, config, llm, "cari duit", [None] * 3)
+    except MissingRequiredField:
+        return
+    raise AssertionError("expected MissingRequiredField")
+
+
 def test_goal_written_before_any_other_mission_file(tmp_path, monkeypatch):
     config, store = setup(tmp_path, monkeypatch)
     llm = FakeLLM([draft_result(VALID_DRAFT)])

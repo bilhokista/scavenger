@@ -44,10 +44,18 @@ class MissingRequiredField(Exception):
         self.field = field
 
 
+def _table(value):
+    return value if isinstance(value, dict) else {}
+
+
 def _goal_from_dict(data: dict) -> Goal:
-    target = data.get("target") or {}
-    budget = data.get("budget") or {}
+    if not isinstance(data, dict):
+        data = {}
+    target = _table(data.get("target"))
+    budget = _table(data.get("budget"))
     settle = data.get("settle")
+    if not isinstance(settle, dict):
+        settle = None
     deadline = target.get("deadline")
     return Goal(
         name=data.get("name", ""),
@@ -76,11 +84,13 @@ def _goal_from_dict(data: dict) -> Goal:
                 max_pending_hours=item.get("max_pending_hours"),
             )
             for item in data.get("ladder", [])
+            if isinstance(item, dict)
         ),
         strategy_defaults=_defaults(data.get("strategy_defaults", {})),
         assumptions=tuple(
             Assumption(text=item.get("text", ""), source=item.get("source", ""))
             for item in data.get("assumptions", [])
+            if isinstance(item, dict)
         ),
         body=data.get("body", ""),
         dir_name=data.get("name", ""),
@@ -101,7 +111,8 @@ def _parse_time(value):
     return datetime.fromisoformat(str(value))
 
 
-def _defaults(data: dict) -> StrategyDefaults:
+def _defaults(data) -> StrategyDefaults:
+    data = _table(data)
     return StrategyDefaults(
         max_rounds=data.get("max_rounds", 3),
         max_loss=_decimal(data.get("max_loss", "10.00")),
