@@ -1,4 +1,5 @@
 import hashlib
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -48,6 +49,18 @@ def _table(value):
     return value if isinstance(value, dict) else {}
 
 
+def _rung(item) -> LadderRung:
+    if isinstance(item, str):
+        return LadderRung(rung=item, expected_wait_hours=0)
+    if not isinstance(item, dict):
+        return LadderRung(rung="", expected_wait_hours=0)
+    return LadderRung(
+        rung=item.get("rung", ""),
+        expected_wait_hours=_float(item.get("expected_wait_hours", 0)),
+        max_pending_hours=_float(item.get("max_pending_hours"), default=None),
+    )
+
+
 def _goal_from_dict(data: dict) -> Goal:
     if not isinstance(data, dict):
         data = {}
@@ -68,8 +81,8 @@ def _goal_from_dict(data: dict) -> Goal:
         ),
         budget=BudgetLimit(
             money=_decimal(budget.get("money")),
-            tokens=budget.get("tokens"),
-            rounds=budget.get("rounds"),
+            tokens=_integer(budget.get("tokens")),
+            rounds=_integer(budget.get("rounds")),
         ),
         settle=Settle(
             adapter=settle.get("adapter", ""),
@@ -77,15 +90,7 @@ def _goal_from_dict(data: dict) -> Goal:
         )
         if settle is not None
         else None,
-        ladder=tuple(
-            LadderRung(
-                rung=item.get("rung", ""),
-                expected_wait_hours=item.get("expected_wait_hours", 0),
-                max_pending_hours=item.get("max_pending_hours"),
-            )
-            for item in data.get("ladder", [])
-            if isinstance(item, dict)
-        ),
+        ladder=tuple(_rung(item) for item in data.get("ladder", [])),
         strategy_defaults=_defaults(data.get("strategy_defaults", {})),
         assumptions=tuple(
             Assumption(text=item.get("text", ""), source=item.get("source", ""))
@@ -106,6 +111,26 @@ def _decimal(value):
         return None
 
 
+def _float(value, default=0):
+    if value is None:
+        return default
+    try:
+        return float(str(value).split()[0])
+    except (ValueError, TypeError, IndexError):
+        return default
+
+
+def _integer(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    match = re.search(r"-?\d+", str(value))
+    return int(match.group(0)) if match else None
+
+
 def _parse_time(value):
     if value is None:
         return None
@@ -117,7 +142,7 @@ def _parse_time(value):
 def _defaults(data) -> StrategyDefaults:
     data = _table(data)
     return StrategyDefaults(
-        max_rounds=data.get("max_rounds", 3),
+        max_rounds=_integer(data.get("max_rounds", 3)) or 3,
         max_loss=_decimal(data.get("max_loss", "10.00")),
         max_pending_hours=data.get("max_pending_hours", 168),
     )
