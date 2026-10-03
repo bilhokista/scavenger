@@ -129,12 +129,25 @@ def _prioritize(errors: list) -> list:
     return never + rest
 
 
+def _vocabulary(config) -> str:
+    from scavenger.goal import KNOWN_ADAPTERS
+
+    rules = [rule.name for rule in config.payment_rules]
+    return (
+        f"Valid settle adapters: {', '.join(sorted(KNOWN_ADAPTERS))}."
+        f" Configured payment rules: {', '.join(rules) or 'none'}."
+        " Ladder rungs use free names ending in 'settled'."
+        ' Amounts and money are plain number strings like "1500.00".'
+        " Deadlines are ISO timestamps like 2026-11-30T16:59:59+00:00."
+    )
+
+
 def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
     conversation = brief
     draft = complete_json(
         llm,
         "Turn the brief into a goal contract."
-        " Reply with ONLY a JSON object, no prose, no fences.",
+        " Reply with ONLY a JSON object, no prose, no fences. " + _vocabulary(config),
         conversation,
         _GOAL_SCHEMA,
     )
@@ -160,7 +173,8 @@ def compile_brief(brief: str, ask, config, *, llm, store, clock) -> Goal:
         draft = complete_json(
             llm,
             "Patch the goal contract with the answer."
-            " Reply with ONLY a JSON object, no prose, no fences.",
+            " Reply with ONLY a JSON object, no prose, no fences. "
+            + _vocabulary(config),
             conversation,
             _GOAL_SCHEMA,
         )
