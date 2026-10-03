@@ -273,6 +273,45 @@ def test_unapproved_items_never_sent(tmp_path, monkeypatch):
     assert smtp.sent == []
 
 
+def test_recorder_writes_log_sends_nothing(tmp_path):
+    from datetime import datetime
+
+    from scavenger.senders.recorder import RecordingSender
+    from scavenger.store import OutboxItem
+
+    class FakeClock:
+        def now(self):
+            return datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+
+    sender = RecordingSender(tmp_path, FakeClock())
+    item = OutboxItem(
+        id="r",
+        mission="demo",
+        strategy_id=None,
+        kind="email",
+        target="boss@example.com",
+        body="hi",
+        links_json="[]",
+        payload_json="{}",
+        cost=Decimal(0),
+        content_sha256="s",
+        expires_at="2030-01-01T00:00:00+00:00",
+        status="approved",
+        decided_at=None,
+        decided_via=None,
+        decided_by=None,
+        sent_at=None,
+        send_result_json=None,
+        created_at="2026-10-04T11:00:00+00:00",
+    )
+    result = sender.send(item)
+    assert result.ok is True
+    assert result.locator == {"dry_run": True}
+    log = tmp_path / "demo" / "dry-run.log"
+    assert log.exists()
+    assert "boss@example.com" in log.read_text(encoding="utf-8")
+
+
 def test_github_comment_sender(tmp_path):
     github = FakeGithub(tmp_path)
     sender = GithubCommentSender(github, username="bot")

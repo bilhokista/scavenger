@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = sub.add_parser("run")
     run_parser.add_argument("--once", action="store_true")
     run_parser.add_argument("--fake", action="store_true")
+    run_parser.add_argument("--dry-run", action="store_true")
     status_parser = sub.add_parser("status")
     status_parser.add_argument("mission", nargs="?")
     approve_parser = sub.add_parser("approve")
@@ -191,6 +192,12 @@ def cmd_run(args) -> int:
 
     config = load_config_only(args.config)
     stack = build_stack(config)
+    if args.dry_run:
+        from scavenger import clock
+        from scavenger.senders.recorder import RecordingSender
+
+        recorder = RecordingSender(config.paths.missions, clock)
+        stack["senders"] = {kind: recorder for kind in stack["senders"]}
     loop = Loop(
         stack["store"],
         config,
