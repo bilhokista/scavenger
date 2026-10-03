@@ -1,6 +1,6 @@
 import hashlib
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from scavenger.goal import (
@@ -100,7 +100,10 @@ def _goal_from_dict(data: dict) -> Goal:
 def _decimal(value):
     if value is None:
         return None
-    return Decimal(str(value))
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 
 def _parse_time(value):
