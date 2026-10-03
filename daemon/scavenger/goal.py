@@ -5,8 +5,9 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-# Phase 2 (adapters) extends this set when new verifier adapters land.
-KNOWN_ADAPTERS = frozenset({"payment_email"})
+# Phase 2 adapters plus the manual-submission attestation adapter.
+# Extended when new verifier adapters land.
+KNOWN_ADAPTERS = frozenset({"payment_email", "github", "inbox", "attested"})
 
 _NAME_RE = re.compile(r"^[a-z0-9-]{3,48}$")
 _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
