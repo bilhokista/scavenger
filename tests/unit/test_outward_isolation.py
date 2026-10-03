@@ -2,7 +2,9 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).parents[2] / "daemon" / "scavenger"
-EXEMPT_DIRS = {"senders", "notifiers", "adapters", "channels"}
+# senders, notifiers, clients, adapters, and channels are outward by
+# design; everything else must never send. llm.py only calls model APIs.
+EXEMPT_DIRS = {"senders", "notifiers", "clients", "adapters", "channels"}
 EXEMPT_FILES = {"llm.py"}
 # Channels needing POST for search endpoints list themselves here.
 GRAPHQL_POST_EXCEPTIONS = set()
