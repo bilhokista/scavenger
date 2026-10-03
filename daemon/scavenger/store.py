@@ -680,6 +680,13 @@ class Store:
                 (locator_json, round_id),
             )
 
+    def set_round_outbox(self, round_id: int, outbox_id: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE rounds SET outbox_id = ? WHERE id = ?",
+                (outbox_id, round_id),
+            )
+
     def list_rounds(self, strategy_id: int, limit: int | None = None) -> list:
         sql = "SELECT * FROM rounds WHERE strategy_id = ? ORDER BY id DESC"
         args: tuple = (strategy_id,)

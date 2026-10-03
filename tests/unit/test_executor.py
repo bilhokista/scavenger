@@ -157,6 +157,24 @@ def test_dead_strategy_not_executed(tmp_path, monkeypatch):
     assert store.get_strategy(strategy_id).status == "dead"
 
 
+def test_draft_links_round_to_outbox(tmp_path, monkeypatch):
+    config, store = setup(tmp_path, monkeypatch)
+    outbox = create_outbox(store, config, [], FakeClock())
+    strategy_id = add_strategy(store)
+    executor = Executor(
+        store,
+        config,
+        {"fake-chan": FakeChannel([draft_action()])},
+        outbox,
+        FakeClock(),
+    )
+    executor.run_round(strategy_id)
+    item = store.list_outbox("awaiting")[0]
+    round_row = store.latest_round(strategy_id)
+    assert round_row.outbox_id == item.id
+    assert store.round_for_outbox(item.id).id == round_row.id
+
+
 def test_spend_recorded(tmp_path, monkeypatch):
     config, store = setup(tmp_path, monkeypatch)
     outbox = create_outbox(store, config, [], FakeClock())

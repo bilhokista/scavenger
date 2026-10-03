@@ -57,7 +57,10 @@ class Executor:
                 source="llm",
             )
         if action.kind == "draft":
-            self._outbox.create_draft(action.draft, strategy.mission, strategy_id)
+            item = self._outbox.create_draft(
+                action.draft, strategy.mission, strategy_id
+            )
+            store.set_round_outbox(round_id, item.id)
             return "drafted"
         if action.kind == "local":
             return self._run_local(strategy, round_id, action)
@@ -98,7 +101,7 @@ class Executor:
             else (f"scavenger work for {strategy.path_key}")
         )
         branch = f"scav-{strategy.id}-{round_id}"
-        self._outbox.create_draft(
+        item = self._outbox.create_draft(
             DraftSpec(
                 kind="github_pr",
                 target=repo,
@@ -116,6 +119,7 @@ class Executor:
             strategy.mission,
             strategy.id,
         )
+        self._store.set_round_outbox(round_id, item.id)
         return "agent-drafted"
 
     def _pr_repo(self, strategy) -> str:

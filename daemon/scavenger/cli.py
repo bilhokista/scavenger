@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("mission")
     run_parser = sub.add_parser("run")
     run_parser.add_argument("--once", action="store_true")
+    run_parser.add_argument("--fake", action="store_true")
     status_parser = sub.add_parser("status")
     status_parser.add_argument("mission", nargs="?")
     approve_parser = sub.add_parser("approve")
@@ -176,6 +177,13 @@ def cmd_validate(args) -> int:
 
 
 def cmd_run(args) -> int:
+    if args.fake:
+        from scavenger.fake import run_fake
+
+        result = run_fake()
+        print(f"fake mission {result['status']} in {result['ticks']} ticks")
+        print(result["report"])
+        return EXIT_OK if result["status"] == "done" else EXIT_ERROR
     import time
 
     from scavenger import clock
