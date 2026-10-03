@@ -191,20 +191,22 @@ scavenger/
   SKILL.md
   plugin/
   daemon/
-    loop.py
-    research.py
-    switcher.py
-    executor.py
-    verifier.py
-    channels/
-    adapters/
-      github.py
-      inbox.py
-      payment_email.py
-    notifiers/
-    brake.py
-    supervisor.py
-    store.py
+    scavenger/          # importable package; see note below
+      loop.py
+      research.py
+      switcher.py
+      executor.py
+      verifier.py
+      channels/
+      adapters/
+        github.py
+        inbox.py
+        payment_email.py
+      senders/
+      notifiers/
+      brake.py
+      supervisor.py
+      store.py
   missions/<name>/
     GOAL.md
     outbox/
@@ -212,6 +214,11 @@ scavenger/
   tests/
   docs/conventions.md
 ```
+
+The modules live in `daemon/scavenger/` rather than directly in
+`daemon/`, because a top-level `daemon` import name collides with the
+existing `python-daemon` package. `senders/` performs approved outward
+actions; nothing else in the daemon talks outward.
 
 `store.py` owns the sqlite schema for missions, rounds, proof checks, and
 the strategy ledger. Every module reads and writes state through it.
