@@ -309,6 +309,14 @@ class ChannelBlock:
     created_at: str
 
 
+@dataclass(frozen=True)
+class SettlementRow:
+    amount: Decimal
+    currency: str
+    message_id: str
+    at: str
+
+
 def _mission_row(row: sqlite3.Row) -> Mission:
     return Mission(
         name=row["name"],
@@ -768,13 +776,12 @@ class Store:
         return True
 
     def settled_in_target(self, mission: str) -> Decimal:
-        row = self._conn.execute(
-            "SELECT SUM(amount_in_target) AS total FROM settlements"
+        rows = self._conn.execute(
+            "SELECT amount_in_target FROM settlements"
             " WHERE mission = ? AND amount_in_target IS NOT NULL",
             (mission,),
-        ).fetchone()
-        total = row["total"]
-        return Decimal(str(total)) if total is not None else Decimal(0)
+        ).fetchall()
+        return sum((Decimal(row["amount_in_target"]) for row in rows), Decimal(0))
 
     def add_outbox(
         self,
@@ -966,6 +973,36 @@ class Store:
             self._conn.execute(
                 "DELETE FROM channel_blocks WHERE channel = ?", (channel,)
             )
+
+    def list_blocks(self) -> list:
+        rows = self._conn.execute(
+            "SELECT * FROM channel_blocks ORDER BY channel"
+        ).fetchall()
+        return [
+            ChannelBlock(
+                channel=row["channel"],
+                cause=row["cause"],
+                until=row["until"],
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
+    def list_settlements(self, mission: str) -> list:
+        rows = self._conn.execute(
+            "SELECT amount, currency, message_id, at FROM settlements"
+            " WHERE mission = ? ORDER BY id",
+            (mission,),
+        ).fetchall()
+        return [
+            SettlementRow(
+                amount=Decimal(row["amount"]),
+                currency=row["currency"],
+                message_id=row["message_id"],
+                at=row["at"],
+            )
+            for row in rows
+        ]
 
     def active_block(self, channel: str) -> ChannelBlock | None:
         row = self._conn.execute(
