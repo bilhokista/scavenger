@@ -609,6 +609,38 @@ class Store:
                 (ended_at, result_state, round_id),
             )
 
+    def latest_round(self, strategy_id: int) -> Round | None:
+        row = self._conn.execute(
+            "SELECT * FROM rounds WHERE strategy_id = ? ORDER BY id DESC LIMIT 1",
+            (strategy_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return Round(
+            id=row["id"],
+            strategy_id=row["strategy_id"],
+            started_at=row["started_at"],
+            ended_at=row["ended_at"],
+            action_kind=row["action_kind"],
+            action_fingerprint=row["action_fingerprint"],
+            outbox_id=row["outbox_id"],
+            locator_json=row["locator_json"],
+            result_state=row["result_state"],
+        )
+
+    def strategy_spend(self, strategy_id: int) -> SpendTotal:
+        row = self._conn.execute(
+            "SELECT SUM(money) AS money, SUM(tokens_in) AS tokens_in,"
+            " SUM(tokens_out) AS tokens_out FROM spend WHERE strategy_id = ?",
+            (strategy_id,),
+        ).fetchone()
+        money = row["money"]
+        return SpendTotal(
+            money=Decimal(str(money)) if money is not None else Decimal(0),
+            tokens_in=row["tokens_in"] or 0,
+            tokens_out=row["tokens_out"] or 0,
+        )
+
     def add_proof_check(
         self,
         strategy_id: int,
