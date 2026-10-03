@@ -443,6 +443,18 @@ class Store:
         ).fetchone()
         return _mission_row(row) if row else None
 
+    def list_missions(self, statuses: tuple | list | None = None) -> list:
+        if statuses:
+            placeholders = ",".join("?" for _ in statuses)
+            rows = self._conn.execute(
+                f"SELECT * FROM missions WHERE status IN ({placeholders})"
+                " ORDER BY name",
+                tuple(statuses),
+            ).fetchall()
+        else:
+            rows = self._conn.execute("SELECT * FROM missions ORDER BY name").fetchall()
+        return [_mission_row(row) for row in rows]
+
     def set_mission_status(
         self,
         name: str,
@@ -618,35 +630,39 @@ class Store:
             )
 
     def latest_round(self, strategy_id: int) -> Round | None:
-        row = self._conn.execute(
-            "SELECT * FROM rounds WHERE strategy_id = ? ORDER BY id DESC LIMIT 1",
-            (strategy_id,),
-        ).fetchone()
-        if not row:
-            return None
-        return Round(
-            id=row["id"],
-            strategy_id=row["strategy_id"],
-            started_at=row["started_at"],
-            ended_at=row["ended_at"],
-            action_kind=row["action_kind"],
-            action_fingerprint=row["action_fingerprint"],
-            outbox_id=row["outbox_id"],
-            locator_json=row["locator_json"],
-            result_state=row["result_state"],
-        )
+        rounds = self.list_rounds(strategy_id, 1)
+        return rounds[0] if rounds else None
+
+    def list_rounds(self, strategy_id: int, limit: int | None = None) -> list:
+        sql = "SELECT * FROM rounds WHERE strategy_id = ? ORDER BY id DESC"
+        args: tuple = (strategy_id,)
+        if limit is not None:
+            sql += " LIMIT ?"
+            args += (limit,)
+        return [
+            Round(
+                id=row["id"],
+                strategy_id=row["strategy_id"],
+                started_at=row["started_at"],
+                ended_at=row["ended_at"],
+                action_kind=row["action_kind"],
+                action_fingerprint=row["action_fingerprint"],
+                outbox_id=row["outbox_id"],
+                locator_json=row["locator_json"],
+                result_state=row["result_state"],
+            )
+            for row in self._conn.execute(sql, args).fetchall()
+        ]
 
     def strategy_spend(self, strategy_id: int) -> SpendTotal:
-        row = self._conn.execute(
-            "SELECT SUM(money) AS money, SUM(tokens_in) AS tokens_in,"
-            " SUM(tokens_out) AS tokens_out FROM spend WHERE strategy_id = ?",
+        rows = self._conn.execute(
+            "SELECT money, tokens_in, tokens_out FROM spend WHERE strategy_id = ?",
             (strategy_id,),
-        ).fetchone()
-        money = row["money"]
+        ).fetchall()
         return SpendTotal(
-            money=Decimal(str(money)) if money is not None else Decimal(0),
-            tokens_in=row["tokens_in"] or 0,
-            tokens_out=row["tokens_out"] or 0,
+            money=sum((Decimal(row["money"]) for row in rows), Decimal(0)),
+            tokens_in=sum(row["tokens_in"] for row in rows),
+            tokens_out=sum(row["tokens_out"] for row in rows),
         )
 
     def add_proof_check(
