@@ -860,6 +860,34 @@ class Store:
         ).fetchone()
         if not row:
             return None
+        return self._outbox_row(row)
+
+    def set_outbox_status(self, item_id: str, status: str, **fields) -> None:
+        allowed = {
+            "decided_at",
+            "decided_via",
+            "decided_by",
+            "sent_at",
+            "send_result_json",
+        }
+        unknown = set(fields) - allowed
+        if unknown:
+            raise ValueError(f"unknown outbox fields: {sorted(unknown)}")
+        assignments = ", ".join(["status = ?"] + [f"{k} = ?" for k in fields])
+        with self._conn:
+            self._conn.execute(
+                f"UPDATE outbox SET {assignments} WHERE id = ?",
+                (status, *fields.values(), item_id),
+            )
+
+    def list_outbox(self, status: str) -> list:
+        rows = self._conn.execute(
+            "SELECT * FROM outbox WHERE status = ? ORDER BY created_at",
+            (status,),
+        ).fetchall()
+        return [self._outbox_row(row) for row in rows]
+
+    def _outbox_row(self, row) -> OutboxItem:
         return OutboxItem(
             id=row["id"],
             mission=row["mission"],
@@ -880,24 +908,6 @@ class Store:
             send_result_json=row["send_result_json"],
             created_at=row["created_at"],
         )
-
-    def set_outbox_status(self, item_id: str, status: str, **fields) -> None:
-        allowed = {
-            "decided_at",
-            "decided_via",
-            "decided_by",
-            "sent_at",
-            "send_result_json",
-        }
-        unknown = set(fields) - allowed
-        if unknown:
-            raise ValueError(f"unknown outbox fields: {sorted(unknown)}")
-        assignments = ", ".join(["status = ?"] + [f"{k} = ?" for k in fields])
-        with self._conn:
-            self._conn.execute(
-                f"UPDATE outbox SET {assignments} WHERE id = ?",
-                (status, *fields.values(), item_id),
-            )
 
     def sends_since(self, since: str) -> int:
         row = self._conn.execute(
