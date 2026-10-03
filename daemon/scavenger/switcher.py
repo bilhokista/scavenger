@@ -127,13 +127,27 @@ def rank(candidates, goal, store, config, now: datetime) -> list:
     return ranked
 
 
+def _needs_work(store, strategy) -> bool:
+    for round_row in store.list_rounds(strategy.id):
+        if round_row.ended_at is None:
+            return False
+    for item in store.list_outbox("awaiting") + store.list_outbox("approved"):
+        if item.strategy_id == strategy.id:
+            return False
+    return True
+
+
 def pick(store, config, mission: str) -> list:
     # Decision: plan fixes pick(mission), which cannot work without store
-    # and config access, so both are explicit parameters.
-    active = store.list_strategies(mission, ("active",))
-    used_keys = {strategy.outward_key for strategy in active}
-    room = config.loop.max_active - len(active)
-    picked = []
+    # and config access, so both are explicit parameters. pick also
+    # returns already-active strategies that need a new round (no open
+    # round, no open draft); without this a strategy could never climb
+    # more than one rung.
+    actives = store.list_strategies(mission, ("active",))
+    used_keys = {strategy.outward_key for strategy in actives}
+    ready = [strategy.id for strategy in actives if _needs_work(store, strategy)]
+    picked = list(ready)
+    room = config.loop.max_active - len(actives)
     if room <= 0:
         return picked
     for strategy in store.list_strategies(mission, ("queued",)):
@@ -142,7 +156,7 @@ def pick(store, config, mission: str) -> list:
         store.update_strategy(strategy.id, status="active")
         used_keys.add(strategy.outward_key)
         picked.append(strategy.id)
-        if len(picked) >= room:
+        if len(picked) - len(ready) >= room:
             break
     return picked
 

@@ -470,6 +470,20 @@ class Store:
                 (status, stopped_at, stop_reason, name),
             )
 
+    def note_research(self, name: str, at: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE missions SET last_research_at = ? WHERE name = ?",
+                (at, name),
+            )
+
+    def note_empty_refill(self, name: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "UPDATE missions SET empty_refills = empty_refills + 1 WHERE name = ?",
+                (name,),
+            )
+
     def add_strategy(
         self,
         *,

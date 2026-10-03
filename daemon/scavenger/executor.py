@@ -29,7 +29,7 @@ class Executor:
     def run_round(self, strategy_id: int) -> str:
         store = self._store
         strategy = store.get_strategy(strategy_id)
-        goal = parse_goal(self._goal_path(store.get_mission(strategy.mission)))
+        goal = parse_goal(self.goal_path(store.get_mission(strategy.mission)))
         verdict = brake.strategy_verdict(strategy, goal)
         if verdict is not None:
             self._close(strategy, verdict.cause)
@@ -188,7 +188,7 @@ class Executor:
             detail="patch ready",
         )
 
-    def _goal_path(self, mission) -> Path:
+    def goal_path(self, mission) -> Path:
         path = Path(mission.goal_path)
         if path.is_absolute():
             return path

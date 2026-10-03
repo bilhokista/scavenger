@@ -258,7 +258,7 @@ def test_pick_skips_same_outward_key(tmp_path):
     other = add_queued(store, "out:other")
     add_queued(store, "out:taken")
     picked = pick(store, config, "demo")
-    assert picked == [other]
+    assert picked == [taken, other]
 
 
 def test_pending_not_runnable(tmp_path):
@@ -267,6 +267,21 @@ def test_pending_not_runnable(tmp_path):
     make_mission(store)
     waiting = add_queued(store, "out:w")
     store.update_strategy(waiting, status="pending")
+    assert pick(store, config, "demo") == []
+
+
+def test_pick_skips_active_with_open_round(tmp_path):
+    store = make_store(tmp_path)
+    config = load_example(tmp_path)
+    make_mission(store)
+    busy = add_queued(store, "out:busy")
+    store.update_strategy(busy, status="active")
+    store.start_round(
+        busy,
+        started_at="2026-10-04T11:00:00+00:00",
+        action_kind="draft",
+        action_fingerprint="fp",
+    )
     assert pick(store, config, "demo") == []
 
 
