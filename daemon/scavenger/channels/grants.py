@@ -1,11 +1,10 @@
-import email.utils
 import re
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from scavenger import clock
 from scavenger.channels import Action, Liveness
+from scavenger.channels.rss import parse_feed
 from scavenger.outbox import DraftSpec
 from scavenger.switcher import Candidate
 
@@ -80,64 +79,22 @@ class GrantsChannel:
         return found
 
     def _parse_feed(self, text: str, url: str) -> list:
-        try:
-            root = ET.fromstring(text)
-        except ET.ParseError:
-            return []
-        entries = []
-        for item in root.iter("item"):
-            title = self._text(item, "title")
-            link = self._text(item, "link")
-            body = self._text(item, "description")
-            published = self._parse_date(self._text(item, "pubDate"))
-            entries.append((title, link, body, published, url))
-        for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
-            title = self._atom_text(entry, "title")
-            link = ""
-            for node in entry.iter("{http://www.w3.org/2005/Atom}link"):
-                link = node.get("href", "")
-                break
-            body = self._atom_text(entry, "summary")
-            published = self._parse_iso(self._atom_text(entry, "updated"))
-            entries.append((title, link, body, published, url))
         rounds = []
-        for title, link, body, published, _ in entries:
-            amount = self._parse_amount(f"{title}\n{body}")
-            if amount is None or published is None:
+        for entry in parse_feed(text):
+            amount = self._parse_amount(f"{entry.title}\n{entry.body}")
+            if amount is None or entry.published is None:
                 continue
             rounds.append(
                 {
-                    "name": title,
-                    "url": link,
+                    "name": entry.title,
+                    "url": entry.link,
                     "amount": amount,
                     "currency": "USD",
-                    "deadline": published + timedelta(days=self._window),
-                    "requirements": body,
+                    "deadline": entry.published + timedelta(days=self._window),
+                    "requirements": entry.body,
                 }
             )
         return rounds
-
-    @staticmethod
-    def _text(item, tag: str) -> str:
-        node = item.find(tag)
-        return node.text.strip() if node is not None and node.text else ""
-
-    @staticmethod
-    def _atom_text(entry, tag: str) -> str:
-        node = entry.find(f"{{http://www.w3.org/2005/Atom}}{tag}")
-        return node.text.strip() if node is not None and node.text else ""
-
-    @staticmethod
-    def _parse_date(value: str):
-        if not value:
-            return None
-        try:
-            moment = email.utils.parsedate_to_datetime(value)
-        except (TypeError, ValueError):
-            return None
-        if moment.tzinfo is None:
-            moment = moment.replace(tzinfo=UTC)
-        return moment
 
     @staticmethod
     def _parse_iso(value: str):

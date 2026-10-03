@@ -20,3 +20,9 @@ def test_pending_without_proof_url():
     adapter = AttestedAdapter()
     result = adapter.check("submitted", {}, SINCE)
     assert result.state == ProofState.PENDING
+
+
+def test_pass_with_send_receipt():
+    adapter = AttestedAdapter()
+    result = adapter.check("submitted", {"thread_message_id": "<abc@host>"}, SINCE)
+    assert result.state == ProofState.PASS

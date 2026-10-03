@@ -43,3 +43,26 @@ def test_money_fields_are_decimal():
     assert isinstance(config.llm.price_per_million_input, Decimal)
     assert isinstance(config.llm.price_per_million_output, Decimal)
     assert isinstance(config.supervisor.max_hourly_money, Decimal)
+
+
+def test_channel_feeds_and_rounds_parse(tmp_path):
+    conf = tmp_path / "scavenger.toml"
+    conf.write_text(
+        "[channels]\n"
+        'enabled = ["grants"]\n'
+        'grants_feeds = ["https://feeds.example/rounds.rss"]\n'
+        'inbox_feeds = ["https://jobs.example/feed.rss"]\n'
+        "\n"
+        "[[channels.grants_rounds]]\n"
+        'name = "Example round"\n'
+        'url = "https://rounds.example/one"\n'
+        'amount = "20000"\n'
+        "\n"
+        "[[channels.inbox_filters]]\n"
+        'subject_regex = "(?i)freelance"\n',
+        encoding="utf-8",
+    )
+    config = load(conf)
+    assert config.channels.grants_feeds == ("https://feeds.example/rounds.rss",)
+    assert config.channels.grants_rounds[0].name == "Example round"
+    assert config.channels.inbox_filters[0].subject_regex == "(?i)freelance"

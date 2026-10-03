@@ -110,3 +110,16 @@ topic_env = "SCAVENGER_NTFY_TOPIC"
 
 [channels]
 enabled = []                    # filled in Phase 6
+grants_feeds = []               # RSS/Atom URLs with grant rounds
+# [[channels.grants_rounds]]    # manual round entries
+# name = "Example round"
+# url = "https://rounds.example/one"
+# amount = "20000"
+# currency = "USD"
+# deadline = "2026-12-31T00:00:00Z"
+# requirements = "Ship the thing."
+inbox_feeds = []                # RSS/Atom URLs with job postings
+# [[channels.inbox_filters]]    # inbound work-request matchers
+# subject_regex = "(?i)freelance|project inquiry"
+# body_regex = ""
+inbox_folder = "INBOX"

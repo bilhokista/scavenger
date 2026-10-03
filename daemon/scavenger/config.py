@@ -183,8 +183,29 @@ class Notifiers:
 
 
 @dataclass(frozen=True)
+class GrantRound:
+    name: str = ""
+    url: str = ""
+    amount: str = ""
+    currency: str = "USD"
+    deadline: str = ""
+    requirements: str = ""
+
+
+@dataclass(frozen=True)
+class InboxFilter:
+    subject_regex: str = ""
+    body_regex: str = ""
+
+
+@dataclass(frozen=True)
 class Channels:
     enabled: tuple = ()
+    grants_feeds: tuple = ()
+    grants_rounds: tuple = ()
+    inbox_feeds: tuple = ()
+    inbox_filters: tuple = ()
+    inbox_folder: str = "INBOX"
 
 
 @dataclass(frozen=True)
@@ -415,7 +436,48 @@ def load(path: str | Path) -> Config:
             )
         )
     channels = data.get("channels", {})
-    _reject_unknown("channels", channels, {"enabled"})
+    _reject_unknown(
+        "channels",
+        channels,
+        {
+            "enabled",
+            "grants_feeds",
+            "grants_rounds",
+            "inbox_feeds",
+            "inbox_filters",
+            "inbox_folder",
+        },
+    )
+    grant_rounds = []
+    for entry in channels.get("grants_rounds", []):
+        _reject_unknown(
+            "channels.grants_rounds",
+            entry,
+            {"name", "url", "amount", "currency", "deadline", "requirements"},
+        )
+        grant_rounds.append(
+            GrantRound(
+                name=entry.get("name", ""),
+                url=entry.get("url", ""),
+                amount=entry.get("amount", ""),
+                currency=entry.get("currency", "USD"),
+                deadline=entry.get("deadline", ""),
+                requirements=entry.get("requirements", ""),
+            )
+        )
+    inbox_filters = []
+    for entry in channels.get("inbox_filters", []):
+        _reject_unknown(
+            "channels.inbox_filters",
+            entry,
+            {"subject_regex", "body_regex"},
+        )
+        inbox_filters.append(
+            InboxFilter(
+                subject_regex=entry.get("subject_regex", ""),
+                body_regex=entry.get("body_regex", ""),
+            )
+        )
     return Config(
         paths=_paths(data.get("paths", {}), base),
         llm=Llm(
@@ -504,5 +566,12 @@ def load(path: str | Path) -> Config:
         ),
         payment_rules=tuple(rules),
         notifiers=_notifiers(data.get("notifiers", {})),
-        channels=Channels(enabled=tuple(channels.get("enabled", ()))),
+        channels=Channels(
+            enabled=tuple(channels.get("enabled", ())),
+            grants_feeds=tuple(channels.get("grants_feeds", ())),
+            grants_rounds=tuple(grant_rounds),
+            inbox_feeds=tuple(channels.get("inbox_feeds", ())),
+            inbox_filters=tuple(inbox_filters),
+            inbox_folder=channels.get("inbox_folder", "INBOX"),
+        ),
     )

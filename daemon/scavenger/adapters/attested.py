@@ -4,9 +4,9 @@ from scavenger.adapters import Adapter, ProofResult, ProofState
 
 
 class AttestedAdapter(Adapter):
-    # Passes when a human attested the submission through mark-sent,
-    # which stores the proof URL in the round locator. Trusts the
-    # human click, like the manual sender does.
+    # Passes when a submission is attested: a human mark-sent URL or a
+    # machine send receipt (thread id) in the round locator. Trusts the
+    # attester, like the manual sender does.
     name = "attested"
 
     def check(self, rung: str, locator: dict, since: datetime) -> ProofResult:
@@ -17,6 +17,17 @@ class AttestedAdapter(Adapter):
                 evidence_raw=url,
                 detail="human-attested submission",
             )
+        if locator.get("thread_message_id"):
+            return ProofResult(
+                state=ProofState.PASS,
+                evidence_raw=locator["thread_message_id"],
+                detail="sent receipt attested",
+            )
+        return ProofResult(
+            state=ProofState.PENDING,
+            evidence_raw="",
+            detail="no submission attested yet",
+        )
         return ProofResult(
             state=ProofState.PENDING,
             evidence_raw="",
